@@ -19,9 +19,11 @@ After installing [Python3](https://www.python.org/) (version 3.7 or higher), the
 pip install -U pyxel
 ```
 
+
 # How to run
 
 `python game.py`
+
 
 # How to Create a Resource
 
@@ -35,3 +37,7 @@ pyxeleditor [pyxel_resource_file]
 
 More details in the [Pyxel Readme](https://github.com/kitao/pyxel/blob/master/README.md)
 
+
+# Some user samples for inspiration
+
+https://github.com/kitao/pyxel/wiki#user-samples
