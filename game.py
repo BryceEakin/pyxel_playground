@@ -50,7 +50,7 @@ class App:
 
         # number of frames that would have happened so far at current speed/fps
         # (adjusted when speed changes to keep things rendering at the same spot)
-        self.frame_count = 0  
+        self.frame_count = 0
 
         # Seconds of 1x-speed game time since game start
         self.game_time = 0.0
