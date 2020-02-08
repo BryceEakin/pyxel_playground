@@ -1,13 +1,51 @@
+import argparse
+import math
 from random import randint
 
 import pyxel
 
+# sprite definitions are just pieces of the image(s) in the .pyxres file
+# look at it in the editor to see what I mean
+# - image number in the .pyxres file with the images (currently always 0)
+# - x coordinate in the source image to start at
+# - y coordinate in the source image
+# - width of the piece to grab
+# - height of the piece to grab
+# - [optional] what color to make transparent (-1 means no transparency)
+
+# Background Sprites
+SKY_SPRITE = (0, 0, 88, 160, 32, -1)
+MOUNTAIN_SPRITE = (0, 0, 64, 160, 24, 12)
+FOREST_SPRITE = (0, 0, 48, 160, 16, 12)
+FAR_CLOUD_SPRITE = (0, 64, 32, 32, 8, 12)
+NEAR_CLOUD_SPRITE = (0, 0, 32, 56, 8, 12)
+
+# Foreground Sprites
+FLOOR_SPRITE = (0, 0, 16, 40, 8, 12)
+FRUIT_SPRITE = [
+    (0, 32, 0, 16, 16, 12),
+    (0, 48, 0, 16, 16, 12),
+    (0, 64, 0, 16, 16, 12)
+]
+PLAYER_SPRITE = [
+    (0, ),
+    (0, )
+]
+
+BASE_FPS = 30
 
 class App:
-    def __init__(self):
-        pyxel.init(160, 120, caption="Pyxel Jump")
+    def __init__(self, fps=BASE_FPS, speed=1.0):
+        pyxel.init(160, 120, caption="Pyxel Jump", fps=fps)
 
         pyxel.load("assets/jump_game.pyxres")
+
+        self._frame_step = speed * BASE_FPS / fps
+        self.__speed = speed
+        self._fps = fps
+
+        self.frame_count = 0
+        self.game_time = 0.0
 
         self.score = 0
         self.player_x = 72
@@ -24,9 +62,28 @@ class App:
 
         pyxel.run(self.update, self.draw)
 
+    @property
+    def _speed(self):
+        return self.__speed
+
+    @_speed.setter
+    def _speed(self, newval):
+        ratio = newval/self.__speed
+        self.frame_count /= ratio
+        self._frame_step *= ratio
+        self.__speed = newval
+
     def update(self):
         if pyxel.btnp(pyxel.KEY_Q):
             pyxel.quit()
+
+        if pyxel.btnp(pyxel.KEY_EQUAL):
+            self._speed = min(3.0, self._speed + 0.25)
+        elif pyxel.btnp(pyxel.KEY_MINUS):
+            self._speed = max(0.25, self._speed - 0.25)
+
+        self.frame_count += self._frame_step
+        self.game_time += self._speed/self._fps
 
         self.update_player()
 
@@ -38,13 +95,13 @@ class App:
 
     def update_player(self):
         if pyxel.btn(pyxel.KEY_LEFT) or pyxel.btn(pyxel.GAMEPAD_1_LEFT):
-            self.player_x = max(self.player_x - 2, 0)
+            self.player_x = max(self.player_x - 2 * self._frame_step, 0)
 
         if pyxel.btn(pyxel.KEY_RIGHT) or pyxel.btn(pyxel.GAMEPAD_1_RIGHT):
-            self.player_x = min(self.player_x + 2, pyxel.width - 16)
+            self.player_x = min(self.player_x + 2 * self._frame_step, pyxel.width - 16)
 
-        self.player_y += self.player_vy
-        self.player_vy = min(self.player_vy + 1, 8)
+        self.player_y += self.player_vy * self._frame_step
+        self.player_vy = min(self.player_vy + self._frame_step, 8)
 
         if self.player_y > pyxel.height:
             if self.player_is_alive:
@@ -72,9 +129,9 @@ class App:
                 self.player_vy = -10
                 pyxel.play(3, 3)
         else:
-            y += 6
+            y += 6 * self._frame_step
 
-        x -= 4
+        x -= 4 * self._frame_step
 
         if x < -40:
             x += 240
@@ -90,7 +147,7 @@ class App:
             self.player_vy = min(self.player_vy, -8)
             pyxel.play(3, 4)
 
-        x -= 2
+        x -= 2 * self._frame_step
 
         if x < -40:
             x += 240
@@ -104,35 +161,37 @@ class App:
         pyxel.cls(12)
 
         # draw sky
-        pyxel.blt(0, 88, 0, 0, 88, 160, 32)
+        pyxel.blt(0, 88, *SKY_SPRITE)
 
         # draw mountain
-        pyxel.blt(0, 88, 0, 0, 64, 160, 24, 12)
+        pyxel.blt(0, 88, *MOUNTAIN_SPRITE)
+
+        frame_steps = math.floor(self.frame_count * self._frame_step)
 
         # draw forest
-        offset = pyxel.frame_count % 160
+        offset = frame_steps % 160
         for i in range(2):
-            pyxel.blt(i * 160 - offset, 104, 0, 0, 48, 160, 16, 12)
+            pyxel.blt(i * 160 - offset, 104, *FOREST_SPRITE)
 
         # draw clouds
-        offset = (pyxel.frame_count // 16) % 160
+        offset = (frame_steps // 16) % 160
         for i in range(2):
             for x, y in self.far_cloud:
-                pyxel.blt(x + i * 160 - offset, y, 0, 64, 32, 32, 8, 12)
+                pyxel.blt(x + i * 160 - offset, y, *FAR_CLOUD_SPRITE)
 
-        offset = (pyxel.frame_count // 8) % 160
+        offset = (frame_steps // 8) % 160
         for i in range(2):
             for x, y in self.near_cloud:
-                pyxel.blt(x + i * 160 - offset, y, 0, 0, 32, 56, 8, 12)
+                pyxel.blt(x + i * 160 - offset, y, *NEAR_CLOUD_SPRITE)
 
         # draw floors
-        for x, y, is_active in self.floor:
-            pyxel.blt(x, y, 0, 0, 16, 40, 8, 12)
+        for x, y, _is_active in self.floor:
+            pyxel.blt(x, y, *FLOOR_SPRITE)
 
         # draw fruits
         for x, y, kind, is_active in self.fruit:
             if is_active:
-                pyxel.blt(x, y, 0, 32 + kind * 16, 0, 16, 16, 12)
+                pyxel.blt(x, y, *FRUIT_SPRITE[kind])
 
         # draw player
         pyxel.blt(
@@ -151,5 +210,23 @@ class App:
         pyxel.text(5, 4, s, 1)
         pyxel.text(4, 4, s, 7)
 
+        # draw time
+        t = self.game_time
+        t = f"{int(t//60)}:{t%60:04.1f}"
+        pyxel.text(pyxel.width - 4 - 4*len(t), 4, t, 1)
+        pyxel.text(pyxel.width - 5 - 4*len(t), 4, t, 7)
 
-App()
+        # draw current speed
+        s = f"SPEED {self._speed:0.2f}x"
+        pyxel.text(pyxel.width - 4 - 4*len(s), 11, s, 1)
+        pyxel.text(pyxel.width - 5 - 4*len(s), 11, s, 7)
+
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--fps', default=75, type=int)
+parser.add_argument('--speed', default=1.0, type=float)
+
+args = parser.parse_args()
+
+App(fps=args.fps, speed=args.speed)
