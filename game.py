@@ -38,14 +38,24 @@ class LevelTheme():
         y = 16*theme_idx
 
         self.block_1x = (1, 0, y, 16, 16, -1)
-        self.block_4x = (1, 0, y, 16, 64, -1)
+        self.block_4x = (1, 0, y, 64, 16, -1)
         self.ladder_top = (1, 64, y, 16, 16, -1)
         self.ladder = (1, 64, y, 16, 16, -1)
+
+    def draw_blocks(self, x,y, draw_w, draw_h):
+        img, u, v, w, h, colkey = self.block_4x
+
+        w = min(draw_w, w)
+        h = min(draw_h, h)
+
+        pyxel.blt(x, y, img, u, v, w, h, colkey)
 
 THEME_ZIG_ZAG = LevelTheme(0)
 THEME_GOLD_BLOCKS = LevelTheme(1)
 THEME_BRICKS = LevelTheme(2)
 THEME_GRASS = LevelTheme(3)
+
+THEMES = [LevelTheme(i) for i in range(4)]
 
 BASE_FPS = 30
 
@@ -215,8 +225,9 @@ class App:
                 pyxel.blt(x + i * 160 - offset, y, *NEAR_CLOUD_SPRITE)
 
         # draw floors
-        for x, y, _is_active in self.floor:
-            pyxel.blt(x, y, *FLOOR_SPRITE)
+        for idx, (x, y, _is_active) in enumerate(self.floor):
+            THEMES[idx].draw_blocks(x, y, 40, 8)
+            #pyxel.blt(x, y, *FLOOR_SPRITE)
 
         # draw fruits
         for x, y, kind, is_active in self.fruit:
