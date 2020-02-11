@@ -32,6 +32,21 @@ PLAYER_SPRITE = [
     (0, 16, 0, 16, 16, 12,),  # Player when jumping
 ]
 
+# Some level "themes" of blocks and ladders
+class LevelTheme():
+    def __init__(self, theme_idx):
+        y = 16*theme_idx
+
+        self.block_1x = (1, 0, y, 16, 16, -1)
+        self.block_4x = (1, 0, y, 16, 64, -1)
+        self.ladder_top = (1, 64, y, 16, 16, -1)
+        self.ladder = (1, 64, y, 16, 16, -1)
+
+THEME_ZIG_ZAG = LevelTheme(0)
+THEME_GOLD_BLOCKS = LevelTheme(1)
+THEME_BRICKS = LevelTheme(2)
+THEME_GRASS = LevelTheme(3)
+
 BASE_FPS = 30
 
 
