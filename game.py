@@ -14,23 +14,21 @@ import pyxel
 # - [optional] what color to make transparent (-1 means no transparency)
 
 # Background Sprites
-SKY_SPRITE =        (0,  0, 88, 160, 32, -1)
-MOUNTAIN_SPRITE =   (0,  0, 64, 160, 24, 12)
-FOREST_SPRITE =     (0,  0, 48, 160, 16, 12)
-FAR_CLOUD_SPRITE =  (0, 64, 32, 32,   8, 12)
-NEAR_CLOUD_SPRITE = (0,  0, 32, 56,   8, 12)
 
 # Foreground Sprites
 FLOOR_SPRITE = (0, 0, 16, 40, 8, 12)
 FRUIT_SPRITE = [
     (0, 32, 0, 16, 16, 12),
     (0, 48, 0, 16, 16, 12),
-    (0, 64, 0, 16, 16, 12)
+    (0, 64, 0, 16, 16, 12),
+    (0, 80, 0, 16, 16, 12)
 ]
 PLAYER_SPRITE = [
     (0,  0, 0, 16, 16, 12,),  # Player when falling
     (0, 16, 0, 16, 16, 12,),  # Player when jumping
 ]
+
+BLOCK_SIZE = 16
 
 # Some level "themes" of blocks and ladders
 class LevelTheme():
@@ -42,30 +40,58 @@ class LevelTheme():
         self.ladder_top = (1, 64, y, 16, 16, -1)
         self.ladder = (1, 64, y, 16, 16, -1)
 
-    def draw_blocks(self, x,y, draw_w, draw_h):
+    def draw_blocks(self, x, y, draw_w, draw_h):
         img, u, v, w, h, colkey = self.block_4x
 
-        w = min(draw_w, w)
-        h = min(draw_h, h)
+        for x_offset in range(0, draw_w, 48):
+            for y_offset in range(0, draw_h, 16):
+                w = min(draw_w - x_offset, 48)
+                h = min(draw_h - y_offset, 16)
 
-        pyxel.blt(x, y, img, u, v, w, h, colkey)
+                pyxel.blt(x + x_offset, y + y_offset, img, u, v, w, h, colkey)
 
 THEME_ZIG_ZAG = LevelTheme(0)
 THEME_GOLD_BLOCKS = LevelTheme(1)
 THEME_BRICKS = LevelTheme(2)
 THEME_GRASS = LevelTheme(3)
+THEME_MASONRY = LevelTheme(4)
 
-THEMES = [LevelTheme(i) for i in range(4)]
+THEMES = [LevelTheme(i) for i in range(5)]
 
 BASE_FPS = 30
+
+class Floor:
+    def __init__(self, floor_x, floor_y, is_active, floor_width=40, floor_height=8, theme=None):
+        self.floor_x = int(floor_x) * BLOCK_SIZE
+        self.floor_y = int(floor_y) * BLOCK_SIZE
+        self.floor_width = int(floor_width) * BLOCK_SIZE
+        self.floor_height = min(self.floor_width, int(floor_height) * BLOCK_SIZE)
+        self.theme = theme
+        self.is_active = is_active
+
+    @property
+    def left(self):
+        return self.floor_x
+
+    @property
+    def right(self):
+        return self.floor_x + self.floor_width
+
+    @property
+    def top(self):
+        return self.floor_y
+
+    @property
+    def bottom(self):
+        return self.floor_y + self.floor_height
 
 
 class App:
     def __init__(self, fps=BASE_FPS, speed=1.0):
-        pyxel.init(160, 120, caption="Pyxel Jump", fps=fps)
+        pyxel.init(256, 256, caption="Pyxel Toomy", fps=fps)
 
         # Load all the images and sounds used in the game
-        pyxel.load("assets/jump_game.pyxres")
+        pyxel.load("assets/toomy_game.pyxres")
 
         self.__speed = speed
         self._fps = fps
@@ -83,15 +109,22 @@ class App:
         # Player info
         self.score = 0
         self.player_x = 72
-        self.player_y = -16
+        self.player_y = 25
         self.player_vy = 0
         self.player_is_alive = True
 
         # Define the stuff on screen
         self.far_cloud = [(-10, 75), (40, 65), (90, 60)]
         self.near_cloud = [(10, 25), (70, 35), (120, 15)]
-        self.floor = [(i * 60, randint(32, 104), True) for i in range(4)]
-        self.fruit = [(i * 60, randint(40, 104), randint(0, 2), True) for i in range(4)]
+        self.floor = [
+            Floor(
+                randint(0, 200//BLOCK_SIZE),
+                randint(8, 16),
+                True,
+                randint(1, 10),
+                1
+            ) for i in range(5)]
+        self.fruit = [(i * 60, randint(40, 104), randint(0, 3), True) for i in range(5)]
 
         # Start playing music (sound #0)
         pyxel.playm(0, loop=True)
@@ -105,9 +138,9 @@ class App:
 
     @_speed.setter
     def _speed(self, newval):
-        # When speed changes we have to update the frame counter or background things 
+        # When speed changes we have to update the frame counter or background things
         # will suddenly jump around
-        
+
         ratio = newval/self.__speed
         self.frame_count /= ratio
         self._frame_step *= ratio
@@ -127,21 +160,37 @@ class App:
 
         self.update_player()
 
-        for i, v in enumerate(self.floor):
-            self.floor[i] = self.update_floor(*v)
-
         for i, v in enumerate(self.fruit):
             self.fruit[i] = self.update_fruit(*v)
 
     def update_player(self):
+        delta_x = 0
+        delta_y = 0
+
         if pyxel.btn(pyxel.KEY_LEFT) or pyxel.btn(pyxel.GAMEPAD_1_LEFT):
-            self.player_x = max(self.player_x - 2 * self._frame_step, 0)
+            delta_x = self._frame_step * -2
 
         if pyxel.btn(pyxel.KEY_RIGHT) or pyxel.btn(pyxel.GAMEPAD_1_RIGHT):
-            self.player_x = min(self.player_x + 2 * self._frame_step, pyxel.width - 16)
+            delta_x = self._frame_step * 2
 
-        self.player_y += self.player_vy * self._frame_step
-        self.player_vy = min(self.player_vy + self._frame_step, 8)
+        if pyxel.btnp(pyxel.KEY_UP) or pyxel.btnp(pyxel.GAMEPAD_1_UP):
+            self.player_vy = -10
+
+        if pyxel.btn(pyxel.KEY_DOWN) or pyxel.btn(pyxel.GAMEPAD_1_DOWN):
+            delta_y = self._frame_step * 2
+
+        delta_y += self.player_vy * self._frame_step
+
+        x_valid, y_valid = self.validate_movement(delta_x, delta_y)
+
+        if x_valid:
+            self.player_x += delta_x
+
+        if y_valid:
+            self.player_y += delta_y
+            self.player_vy += self._frame_step
+        else:
+            self.player_vy = 0
 
         if self.player_y > pyxel.height:
             if self.player_is_alive:
@@ -155,30 +204,41 @@ class App:
                 self.player_vy = 0
                 self.player_is_alive = True
 
-    def update_floor(self, x, y, is_active):
-        if is_active:
+    def validate_movement(self, delta_x, delta_y):
+        x_valid = True
+        y_valid = True
+
+        for floor in self.floor:
             if (
-                self.player_x + 16 >= x
-                and self.player_x <= x + 40
-                and self.player_y + 16 >= y
-                and self.player_y <= y + 8
-                and self.player_vy > 0
+                self.player_x + 16 + delta_x >= floor.left
+                and self.player_x + delta_x <= floor.right
+
+                and self.player_y + 16 >= floor.top
+                and self.player_y <= floor.bottom
             ):
-                is_active = False
-                self.score += 10
-                self.player_vy = -10
-                pyxel.play(3, 3)
-        else:
-            y += 6 * self._frame_step
+                x_valid = False
 
-        x -= 4 * self._frame_step
+            if x_valid:
+                if (
+                    self.player_x + 16 + delta_x >= floor.left
+                    and self.player_x + delta_x <= floor.right
 
-        if x < -40:
-            x += 240
-            y = randint(40, 104)
-            is_active = True
+                    and self.player_y + 16 + delta_y >= floor.top
+                    and self.player_y + delta_y <= floor.bottom
+                ):
+                    y_valid = False
 
-        return x, y, is_active
+            else:
+                if (
+                    self.player_x + 16 >= floor.left
+                    and self.player_x <= floor.right
+
+                    and self.player_y + 16 + delta_y >= floor.top
+                    and self.player_y + delta_y <= floor.bottom
+                ):
+                    y_valid = False
+
+        return x_valid, y_valid
 
     def update_fruit(self, x, y, kind, is_active):
         if is_active and abs(x - self.player_x) < 12 and abs(y - self.player_y) < 12:
@@ -187,12 +247,12 @@ class App:
             self.player_vy = min(self.player_vy, -8)
             pyxel.play(3, 4)
 
-        x -= 2 * self._frame_step
+        # x -= 2 * self._frame_step
 
         if x < -40:
             x += 240
             y = randint(32, 104)
-            kind = randint(0, 2)
+            kind = randint(0, 3)
             is_active = True
 
         return (x, y, kind, is_active)
@@ -200,33 +260,10 @@ class App:
     def draw(self):
         pyxel.cls(12)
 
-        # draw sky
-        pyxel.blt(0, 88, *SKY_SPRITE)
-
-        # draw mountain
-        pyxel.blt(0, 88, *MOUNTAIN_SPRITE)
-
-        frame_steps = math.floor(self.frame_count * self._frame_step)
-
-        # draw forest
-        offset = frame_steps % 160
-        for i in range(2):
-            pyxel.blt(i * 160 - offset, 104, *FOREST_SPRITE)
-
-        # draw clouds
-        offset = (frame_steps // 16) % 160
-        for i in range(2):
-            for x, y in self.far_cloud:
-                pyxel.blt(x + i * 160 - offset, y, *FAR_CLOUD_SPRITE)
-
-        offset = (frame_steps // 8) % 160
-        for i in range(2):
-            for x, y in self.near_cloud:
-                pyxel.blt(x + i * 160 - offset, y, *NEAR_CLOUD_SPRITE)
 
         # draw floors
-        for idx, (x, y, _is_active) in enumerate(self.floor):
-            THEMES[idx].draw_blocks(x, y, 40, 8)
+        for idx, floor in enumerate(self.floor):
+            THEMES[idx].draw_blocks(floor.left, floor.top, floor.floor_width, floor.floor_height)
             #pyxel.blt(x, y, *FLOOR_SPRITE)
 
         # draw fruits
