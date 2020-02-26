@@ -28,8 +28,8 @@ FRUIT_SPRITE = [
     (0, 64, 0, 16, 16, 12)
 ]
 PLAYER_SPRITE = [
-    (0,  0, 0, 16, 16, 12,),  # Player when falling
-    (0, 16, 0, 16, 16, 12,),  # Player when jumping
+    (0,  0, 0, -16, 16, 12,),  # Player when falling
+    (0, 16, 0, -16, 16, 12,),  # Player when jumping
 ]
 
 # Some level "themes" of blocks and ladders
